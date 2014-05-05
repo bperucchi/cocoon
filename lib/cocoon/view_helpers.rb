@@ -39,12 +39,14 @@ module Cocoon
       end
     end
 
-    # :nodoc:
-    def render_association(association, f, new_object, form_name, render_options={}, custom_partial=nil)
+    # :nodocbpe    def render_association(association, f, new_object, form_name, render_options={}, custom_partial=nil, force_non_association_create=false)
       partial = get_partial_path(custom_partial, association)
       locals =  render_options.delete(:locals) || {}
+      
+      child_index_args = force_non_association_create ? { } : {:child_index => "new_#{association}"}
+
       method_name = f.respond_to?(:semantic_fields_for) ? :semantic_fields_for : (f.respond_to?(:simple_fields_for) ? :simple_fields_for : :fields_for)
-      f.send(method_name, association, new_object, {:child_index => "new_#{association}"}.merge(render_options)) do |builder|
+      f.send(method_name, association, new_object, child_index_args.merge(render_options)) do |builder|
         partial_options = {form_name.to_sym => builder, :dynamic => true}.merge(locals)
         render(partial, partial_options)
       end
@@ -92,7 +94,9 @@ module Cocoon
         new_object = create_object(f, association, force_non_association_create)
         new_object = wrap_object.call(new_object) if wrap_object.respond_to?(:call)
 
-        html_options[:'data-association-insertion-template'] = CGI.escapeHTML(render_association(association, f, new_object, form_parameter_name, render_options, override_partial).to_str).html_safe
+        association = force_non_association_create ? "" : association
+
+        html_options[:'data-association-insertion-template'] = CGI.escapeHTML(render_association(association, f, new_object, form_parameter_name, render_options, override_partial, force_non_association_create).to_str).html_safe
 
         html_options[:'data-count'] = count if count > 0
 
@@ -118,8 +122,9 @@ module Cocoon
 
     def create_object_on_non_association(f, association)
       builder_method = %W{build_#{association} build_#{association.to_s.singularize}}.select { |m| f.object.respond_to?(m) }.first
-      return f.object.send(builder_method) if builder_method
-      raise "Association #{association} doesn't exist on #{f.object.class}"
+      # return f.object.send(builder_method) if builder_method
+      return ""
+      # raise "Association #{association} doesn't exist on #{f.object.class}"
     end
 
     def create_object_on_association(f, association, instance, force_non_association_create)
